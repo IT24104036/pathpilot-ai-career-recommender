@@ -1,0 +1,18 @@
+{
+  "name": "pathpilot",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -n FE,BE -c cyan,green \"npm:dev:frontend\" \"npm:dev:backend\"",
+    "dev:all": "concurrently -n FE,BE,ML -c cyan,green,magenta \"npm:dev:frontend\" \"npm:dev:backend\" \"npm:dev:ml\"",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run start",
+    "dev:ml": "cd ml-service && python -m uvicorn app:app --reload --port 8000",
+    "build:frontend": "npm --prefix frontend run build",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "typecheck:frontend": "npm --prefix frontend run typecheck",
+    "install-all": "npm --prefix frontend install && npm --prefix backend install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
