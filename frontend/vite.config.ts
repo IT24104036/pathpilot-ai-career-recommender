@@ -1,20 +1,37 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, nitro (build-only),
-//     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
-//     error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import viteTsConfigPaths from "vite-tsconfig-paths";
+import tailwindcss from "@tailwindcss/vite";
+import { nitro } from "nitro/vite";
 
+// Match the official Vercel TanStack Start example:
+// https://github.com/vercel/vercel/tree/main/examples/tanstack-start
+//
+// Important: do NOT commit a root index.html. If present, Nitro treats it as a
+// static SPA shell and never calls TanStack SSR (blank white page on Vercel).
 export default defineConfig({
-  // Force Nitro on outside Lovable. On Vercel, Nitro auto-detects the vercel
-  // preset (NITRO_PRESET / platform env). Pinning vercel keeps local `vite build`
-  // output compatible with `vercel deploy --prebuilt`.
-  nitro: {
-    preset: "vercel",
+  resolve: {
+    alias: {
+      "@": `${process.cwd()}/src`,
+    },
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+    ],
   },
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    server: { entry: "server" },
-  },
+  plugins: [
+    viteTsConfigPaths({
+      projects: ["./tsconfig.json"],
+    }),
+    tailwindcss(),
+    tanstackStart(),
+    // Pin vercel so CI/local prebuilt deploys use Build Output API.
+    nitro({ preset: "vercel" }),
+    viteReact(),
+  ],
 });
