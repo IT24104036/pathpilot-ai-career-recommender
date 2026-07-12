@@ -87,8 +87,8 @@ career-compass-ai/
 Create local env files from the examples:
 
 ```bash
-cp backend/.env backend/.env
-cp frontend/.env frontend/.env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
 `backend/.env`
