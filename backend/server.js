@@ -37,35 +37,52 @@ const uploadPhoto = multer({
 });
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+// CORS: browsers on Vercel call this API cross-origin. If Access-Control-Allow-Origin
+// is missing, login/register show "Could not connect to server".
 const DEFAULT_CLIENT_ORIGINS = [
   ...[3000, 4173, 5173, 5174, 5175, 8080, 8081, 8082, 8083, 8084, 8085].flatMap(
     (port) => [`http://localhost:${port}`, `http://127.0.0.1:${port}`],
   ),
 ];
 
-function getAllowedOrigins() {
-  const configuredOrigins =
-    process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || "";
-  const origins = configuredOrigins
+function parseOriginList(value) {
+  return (value || "")
     .split(",")
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
-
-  // Always keep local dev origins so local frontend can talk to a hosted API.
-  return new Set([...DEFAULT_CLIENT_ORIGINS, ...origins]);
 }
 
-const allowedOrigins = getAllowedOrigins();
-const allowVercelPreviews =
-  String(process.env.ALLOW_VERCEL_PREVIEWS || "")
+const configuredOrigins = parseOriginList(
+  process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || "",
+);
+const allowedOrigins = new Set([...DEFAULT_CLIENT_ORIGINS, ...configuredOrigins]);
+
+// Default ON so hosted frontends on Vercel work even if CLIENT_ORIGIN was forgotten.
+// Set ALLOW_VERCEL_PREVIEWS=false to disable.
+const allowVercelPreviews = !["0", "false", "no", "off"].includes(
+  String(process.env.ALLOW_VERCEL_PREVIEWS ?? "true")
     .trim()
-    .toLowerCase() === "true";
+    .toLowerCase(),
+);
+
+// If CLIENT_ORIGIN is unset, reflect any origin (JWT is in localStorage, not cookies).
+// Set CORS_STRICT=true to require an explicit allowlist only.
+const corsStrict = ["1", "true", "yes", "on"].includes(
+  String(process.env.CORS_STRICT || "")
+    .trim()
+    .toLowerCase(),
+);
 
 function isOriginAllowed(origin) {
   if (!origin) return true;
   if (allowedOrigins.has("*") || allowedOrigins.has(origin)) return true;
-  // Optional: allow every https://*.vercel.app preview/production URL
-  if (allowVercelPreviews && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+  if (
+    allowVercelPreviews &&
+    /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$/i.test(origin)
+  ) {
+    return true;
+  }
+  if (!corsStrict && configuredOrigins.length === 0) {
     return true;
   }
   return false;
@@ -75,14 +92,17 @@ app.use(
   cors({
     origin(origin, callback) {
       if (isOriginAllowed(origin)) {
+        // Reflect the request origin so credentialed/browser fetches succeed.
         return callback(null, true);
       }
 
-      // Do not throw — a thrown Error becomes a hard 403/500 and browsers only
+      // Do not throw — a thrown Error becomes a hard 403 and browsers only
       // show a generic network failure ("Could not connect to server").
       console.warn(`CORS blocked origin: ${origin}`);
       return callback(null, false);
     },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 app.use(express.json());
