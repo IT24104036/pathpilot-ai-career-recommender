@@ -48,22 +48,40 @@ function getAllowedOrigins() {
     process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || "";
   const origins = configuredOrigins
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-  return new Set(origins.length > 0 ? origins : DEFAULT_CLIENT_ORIGINS);
+  // Always keep local dev origins so local frontend can talk to a hosted API.
+  return new Set([...DEFAULT_CLIENT_ORIGINS, ...origins]);
 }
 
 const allowedOrigins = getAllowedOrigins();
+const allowVercelPreviews =
+  String(process.env.ALLOW_VERCEL_PREVIEWS || "")
+    .trim()
+    .toLowerCase() === "true";
+
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.has("*") || allowedOrigins.has(origin)) return true;
+  // Optional: allow every https://*.vercel.app preview/production URL
+  if (allowVercelPreviews && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) {
+    return true;
+  }
+  return false;
+}
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has("*") || allowedOrigins.has(origin)) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
 
-      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      // Do not throw — a thrown Error becomes a hard 403/500 and browsers only
+      // show a generic network failure ("Could not connect to server").
+      console.warn(`CORS blocked origin: ${origin}`);
+      return callback(null, false);
     },
   }),
 );
